@@ -1,0 +1,21 @@
+version: "3.8"
+services:
+  master:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "8080:3003"
+    environment:
+      # inject on secret...
+      - MONGO_URL=
+      - MONGO_NAME=
+
+      - RABBIT_URL=
+
+      - CDN_HOST_URL=
+
+    network_mode: bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

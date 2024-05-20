@@ -1,0 +1,16 @@
+<html>
+  <header>
+    <meta http-equiv="refresh" content="5" />
+    <title>WhatsApp Function</title>
+  </header>
+  <body>
+    <h1>Please scan this QR Code...</h1>
+    <p>
+      <img
+        src='data:image/png;base64,{{index . "qr_code_base64_img"}}'
+        alt="QR Code"
+        width="300"
+      />
+    </p>
+  </body>
+</html>
