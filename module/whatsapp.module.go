@@ -1,31 +1,31 @@
 package module
 
 import (
+	"core/connection"
+	"core/env"
+	"core/interfaces"
+	"core/middleware"
+	"core/util"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"project/connection"
-	"project/env"
-	"project/interfaces"
-	"project/middleware"
-	"project/util"
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/gofiber/fiber/v2"
 	"github.com/streadway/amqp"
 )
 
 type WhatsApp struct{}
 
-func (ref WhatsApp) Route(e *echo.Group) {
+func (ref WhatsApp) Route(api fiber.Router) {
 	handler := WhatsAppHandler{}
+	route := api.Group("/whatsapp")
 
-	e.GET("/whatsapp-qr-code", handler.QrCode)
-	e.GET("/:project_key/whatsapp-is-register/:target_number", handler.IsRegister)
-	e.POST("/:project_key/whatsapp-send", handler.Send, middleware.Onlyproject)
-
+	route.Get("/qr-code", handler.QrCode)
+	route.Get("/is-register/:target_number", handler.IsRegister)
+	route.Post("/send", handler.Send, middleware.OnIntranetNetwork)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -33,42 +33,42 @@ func (ref WhatsApp) Route(e *echo.Group) {
 
 type WhatsAppHandler struct{}
 
-func (handler WhatsAppHandler) QrCode(c echo.Context) error {
+func (handler WhatsAppHandler) QrCode(c *fiber.Ctx) error {
 	if connection.WhatsAppQrCode != "" {
-		return c.Render(http.StatusOK, "qr-code.html", map[string]interface{}{
+		return c.Render("qr-code.html", fiber.Map{
 			"qr_code_base64_img": connection.WhatsAppQrCode,
 		})
 	}
 
-	return c.Render(http.StatusOK, "qr-code-connected.html", nil)
+	return c.Render("qr-code-connected.html", nil)
 }
 
-func (handler WhatsAppHandler) IsRegister(c echo.Context) error {
+func (handler WhatsAppHandler) IsRegister(c *fiber.Ctx) error {
 	var err error
 
 	Validate := util.Validate{}
-	target_number := c.Param("target_number")
+	target_number := c.Params("target_number")
 	targetNumber, err := Validate.NumberOnly(target_number)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"message": "phone number is not number"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "phone number is not number"})
 	}
 	target_number = string(rune(targetNumber))
 	if connection.WhatsAppClient.IsConnected() && connection.WhatsAppClient.IsLoggedIn() {
 		is_registered, err := connection.WhatsAppClient.IsOnWhatsApp([]string{target_number})
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"message": err.Error()})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": err.Error()})
 		}
 
-		return c.JSON(http.StatusOK, map[string]bool{"is_registered": is_registered[0].IsIn})
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"is_registered": is_registered[0].IsIn})
 	}
 
-	return c.JSON(http.StatusBadRequest, map[string]string{"message": "WhatsApp client not connected or logged in"})
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "WhatsApp client not connected or logged in"})
 }
 
-func (handler WhatsAppHandler) Send(c echo.Context) error {
+func (handler WhatsAppHandler) Send(c *fiber.Ctx) error {
 	var err error
 
-	// projectID := c.Request().Context().Value("project_id")
+	// projectID := c.Locals("project_id")
 
 	String := util.String{}
 
@@ -82,30 +82,30 @@ func (handler WhatsAppHandler) Send(c echo.Context) error {
 		Data          *map[string]interface{} `json:"data,omitempty"`
 		FileName      *string                 `json:"filename,omitempty"`
 	}
-	if err = c.Bind(&body); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"message": "Format JSON tidak valid"})
+	if err = c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Format JSON tidak valid"})
 	}
 
 	if WhatsAppClient.IsConnected() && WhatsAppClient.IsLoggedIn() {
 		rabbit_url := env.GetRabbitUrl()
 		Connection, err := amqp.Dial(rabbit_url)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Failed to connect to RabbitMQ: %s", err)})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": fmt.Sprintf("Failed to connect to RabbitMQ: %s", err)})
 		}
 		defer Connection.Close()
 		Channel, err := Connection.Channel()
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Failed to open a channel: %s", err)})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": fmt.Sprintf("Failed to open a channel: %s", err)})
 		}
 		defer Channel.Close()
 
 		registers, err := WhatsAppClient.IsOnWhatsApp(body.TargetNumbers)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"message": err.Error()})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": err.Error()})
 		}
 
 		if !(body.Type == "text" || body.Type == "image" || body.Type == "file") {
-			return c.JSON(http.StatusBadRequest, map[string]string{"message": "type not found"})
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "type not found"})
 		}
 
 		messageObj := interfaces.IWhatsAppSendQueueRabbitMQ{
@@ -122,26 +122,24 @@ func (handler WhatsAppHandler) Send(c echo.Context) error {
 
 		if body.Type == "image" || body.Type == "file" {
 			if body.FileName == nil {
-				return c.JSON(http.StatusBadRequest, map[string]string{"message": "filename is required"})
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "filename is required"})
 			}
 
 			tempFile := filepath.Join(env.GetPwd(), "temp", *body.FileName)
 			data, err := os.ReadFile(tempFile)
 			if err != nil {
-				return c.JSON(http.StatusBadRequest, map[string]string{"message": "file not found"})
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "file not found"})
 			}
 
 			if body.Type == "image" {
 				contentType := http.DetectContentType(data)
 				if !strings.HasPrefix(contentType, "image/") {
-					return c.JSON(http.StatusBadRequest, map[string]string{"message": "file is not image"})
+					return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "file is not image"})
 				}
 			}
 
 			messageObj.FileName = body.FileName
-			fmt.Println("OK...")
 		}
-		fmt.Printf("messageObj: %+v\n", messageObj)
 
 		success := make(map[string]string)
 		errors := make(map[string]string)
@@ -178,12 +176,12 @@ func (handler WhatsAppHandler) Send(c echo.Context) error {
 			}
 		}
 
-		return c.JSON(http.StatusOK, map[string]any{
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"message": "success send message",
 			"success": success,
 			"errors":  errors,
 		})
 	}
 
-	return c.JSON(http.StatusBadRequest, map[string]string{"message": "WhatsApp client not connected or logged in"})
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "WhatsApp client not connected or logged in"})
 }

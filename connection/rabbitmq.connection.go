@@ -1,8 +1,8 @@
 package connection
 
 import (
+	"core/env"
 	"log"
-	"project/env"
 
 	"github.com/streadway/amqp"
 )

@@ -1,25 +1,25 @@
 package module
 
 import (
+	"core/env"
+	"core/middleware"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
-	"project/env"
-	"project/middleware"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 )
 
 type Temp struct{}
 
-func (ref Temp) Route(e *echo.Group) {
+func (ref Temp) Route(api fiber.Router) {
 	handler := TempHandler{}
+	route := api.Group("/temp")
 
-	e.GET("/:project_key/temp-clear", handler.Clear, middleware.Onlyproject)
-	e.POST("/:project_key/temp-upload-image", handler.UploadImage, middleware.Onlyproject, middleware.OnlyImage)
+	route.Get("/clear", handler.Clear, middleware.OnIntranetNetwork)
+	route.Post("/upload-image", handler.UploadImage, middleware.OnIntranetNetwork, middleware.OnlyImage)
 
 }
 
@@ -28,11 +28,13 @@ func (ref Temp) Route(e *echo.Group) {
 
 type TempHandler struct{}
 
-func (handler TempHandler) Clear(c echo.Context) error {
-	return c.JSON(http.StatusOK, map[string]string{"message": "temp clear"})
+func (handler TempHandler) Clear(c *fiber.Ctx) error {
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "temp clear",
+	})
 }
 
-func (handler TempHandler) UploadImage(c echo.Context) error {
+func (handler TempHandler) UploadImage(c *fiber.Ctx) error {
 	var err error
 
 	// Menerima file dari form
@@ -65,5 +67,8 @@ func (handler TempHandler) UploadImage(c echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{"message": "uploaded", "file": newFile})
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "uploaded",
+		"file":    newFile,
+	})
 }

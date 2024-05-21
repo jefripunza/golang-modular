@@ -1,17 +1,16 @@
 package module
 
 import (
-	"net/http"
-
-	"github.com/labstack/echo/v4"
+	"github.com/gofiber/fiber/v2"
 )
 
 type User struct{}
 
-func (ref User) Route(e *echo.Group) {
+func (ref User) Route(api fiber.Router) {
 	handler := UserHandler{}
+	route := api.Group("/user")
 
-	e.GET("/:project_key/example-trigger/:value", handler.Trigger)
+	route.Get("/detail", handler.Detail)
 
 }
 
@@ -20,10 +19,10 @@ func (ref User) Route(e *echo.Group) {
 
 type UserHandler struct{}
 
-func (handler UserHandler) Trigger(c echo.Context) error {
+func (handler UserHandler) Detail(c *fiber.Ctx) error {
 	// var err error
 
-	value := c.Param("value")
-
-	return c.JSON(http.StatusOK, map[string]string{"message": "OK", "value": value})
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "OK",
+	})
 }

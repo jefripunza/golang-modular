@@ -1,12 +1,12 @@
 package util
 
 import (
+	"core/env"
 	"fmt"
 	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"project/env"
 	"strings"
 )
 
@@ -57,7 +57,7 @@ func (ref File) ClearAllOnFolder(folderPath string) error {
 	pwd := env.GetPwd()
 	folderPath = filepath.Join(pwd, folderPath)
 	if folderPath == pwd { // pengaman...
-		return fmt.Errorf("cannot clear project, please :')")
+		return fmt.Errorf("cannot clear core, please :')")
 	}
 	dir, err := os.Open(folderPath)
 	if err != nil {

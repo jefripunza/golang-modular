@@ -2,10 +2,10 @@ package connection
 
 import (
 	"context"
+	"core/env"
+	"core/interfaces"
 	"fmt"
 	"log"
-	"project/env"
-	"project/interfaces"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

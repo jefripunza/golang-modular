@@ -1,8 +1,8 @@
 package variable
 
 import (
+	"core/env"
 	"path/filepath"
-	"project/env"
 )
 
 var DatabasePath = filepath.Join(env.GetPwd(), "database")

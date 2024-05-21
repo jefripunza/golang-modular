@@ -1,17 +1,16 @@
 package module
 
 import (
-	"net/http"
-
-	"github.com/labstack/echo/v4"
+	"github.com/gofiber/fiber/v2"
 )
 
 type Payment struct{}
 
-func (ref Payment) Route(e *echo.Group) {
+func (ref Payment) Route(api fiber.Router) {
 	handler := PaymentHandler{}
+	route := api.Group("/payment")
 
-	e.GET("/:project_key/example-trigger/:value", handler.Trigger)
+	route.Post("/make", handler.Make)
 
 }
 
@@ -20,10 +19,10 @@ func (ref Payment) Route(e *echo.Group) {
 
 type PaymentHandler struct{}
 
-func (handler PaymentHandler) Trigger(c echo.Context) error {
+func (handler PaymentHandler) Make(c *fiber.Ctx) error {
 	// var err error
 
-	value := c.Param("value")
-
-	return c.JSON(http.StatusOK, map[string]string{"message": "OK", "value": value})
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "OK",
+	})
 }

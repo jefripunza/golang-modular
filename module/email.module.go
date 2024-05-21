@@ -1,27 +1,26 @@
 package module
 
 import (
+	"core/connection"
+	"core/env"
+	"core/interfaces"
+	"core/middleware"
+	"core/util"
 	"fmt"
-	"net/http"
 	"net/smtp"
-	"project/connection"
-	"project/env"
-	"project/interfaces"
-	"project/middleware"
-	"project/util"
 
-	"github.com/labstack/echo/v4"
+	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type Email struct{}
 
-func (ref Email) Route(e *echo.Group) {
+func (ref Email) Route(api fiber.Router) {
 	handler := EmailHandler{}
+	route := api.Group("/email")
 
-	e.POST("/:project_key/email-send/:email", handler.Send, middleware.Onlyproject)
-
+	route.Post("/send/:email", handler.Send, middleware.OnIntranetNetwork)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -29,41 +28,39 @@ func (ref Email) Route(e *echo.Group) {
 
 type EmailHandler struct{}
 
-func (handler EmailHandler) Send(c echo.Context) error {
+func (handler EmailHandler) Send(c *fiber.Ctx) error {
 	var err error
 
 	MongoDB := connection.MongoDB{}
-
 	Validate := util.Validate{}
 
-	projectID := c.Request().Context().Value("project_id")
-	emailSender := c.Param("email")
+	projectID := c.Locals("project_id")
+	emailSender := c.Params("email")
 
 	var body struct {
 		To      string `json:"to"`
 		Subject string `json:"subject"`
 		Body    string `json:"body"`
 	}
-	if err = c.Bind(&body); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"message": "Format JSON tidak valid"})
+	if err = c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Format JSON tidak valid"})
 	}
 
 	client, ctx, err := MongoDB.Connect()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Error connect core database: %v", err)})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": fmt.Sprintf("Error connect core database: %v", err)})
 	}
 	defer client.Disconnect(ctx)
 	database := client.Database(env.GetMongoName())
-	defer database.Client().Disconnect(ctx)
 
 	var emailCredential interfaces.IEmailCredential
-	email_credentials := database.Collection("email_credentials")
+	emailCredentials := database.Collection("email_credentials")
 	filter := bson.M{"project_id": projectID, "email": emailSender}
-	if err := email_credentials.FindOne(ctx, filter).Decode(&emailCredential); err != nil {
+	if err := emailCredentials.FindOne(ctx, filter).Decode(&emailCredential); err != nil {
 		if err == mongo.ErrNoDocuments {
-			return c.JSON(http.StatusNotFound, map[string]string{"message": "email sender not found"})
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "email sender not found"})
 		} else {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Error finding document:%v", err)})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": fmt.Sprintf("Error finding document: %v", err)})
 		}
 	}
 
@@ -72,14 +69,14 @@ func (handler EmailHandler) Send(c echo.Context) error {
 
 	port, err := Validate.NumberOnly(emailCredential.Port)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"message": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": err.Error()})
 	}
 
 	auth := smtp.PlainAuth("", emailCredential.Email, emailCredential.Password, emailCredential.Host)
 	err = smtp.SendMail(fmt.Sprintf("%s:%d", emailCredential.Host, port), auth, emailCredential.Email, to, msg)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Error sending email: %v", err)})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": fmt.Sprintf("Error sending email: %v", err)})
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{"message": "success send email"})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "success send email"})
 }

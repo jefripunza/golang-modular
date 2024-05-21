@@ -1,18 +1,19 @@
 package module
 
 import (
-	"net/http"
-	"project/middleware"
+	"core/middleware"
 
-	"github.com/labstack/echo/v4"
+	"github.com/gofiber/fiber/v2"
 )
 
 type Notification struct{}
 
-func (ref Notification) Route(e *echo.Group) {
+func (ref Notification) Route(api fiber.Router) {
 	handler := NotificationHandler{}
+	route := api.Group("/notification")
 
-	e.POST("/:project_key/notification-send", handler.Send, middleware.Onlyproject)
+	route.Post("/send", handler.Send, middleware.OnIntranetNetwork)
+	route.Post("/blast", handler.Blast, middleware.OnIntranetNetwork)
 
 }
 
@@ -21,8 +22,18 @@ func (ref Notification) Route(e *echo.Group) {
 
 type NotificationHandler struct{}
 
-func (handler NotificationHandler) Send(c echo.Context) error {
+func (handler NotificationHandler) Send(c *fiber.Ctx) error {
 	// var err error
 
-	return c.JSON(http.StatusOK, map[string]string{"message": "OK"})
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "OK",
+	})
+}
+
+func (handler NotificationHandler) Blast(c *fiber.Ctx) error {
+	// var err error
+
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "OK",
+	})
 }

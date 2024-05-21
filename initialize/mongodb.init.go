@@ -1,12 +1,17 @@
 package initialize
 
 import (
+	"core/connection"
+	"core/env"
+	"core/interfaces"
+	"core/model"
+	"core/util"
 	"log"
-	"project/connection"
-	"project/env"
-	"project/interfaces"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func MongoDB() {
@@ -21,6 +26,39 @@ func MongoDB() {
 	defer client.Disconnect(ctx)
 	database := client.Database(env.GetMongoName())
 	defer database.Client().Disconnect(ctx)
+
+	// -----------------------------------------------------------------
+	// -----------------------------------------------------------------
+
+	collection := database.Collection("user")
+	exist := model.User{}
+
+	err = collection.FindOne(ctx, bson.M{
+		"username": "admin",
+	}).Decode(&exist)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			Encryption := util.Encryption{}
+			hashedPassword, err := Encryption.Encode("admin123")
+			if err != nil {
+				log.Fatalln("could not hash password")
+				return
+			}
+			NowAt := primitive.NewDateTimeFromTime(time.Now())
+			_, err = collection.InsertOne(ctx, model.User{
+				Name:      "Administrator",
+				Username:  "admin",
+				Password:  string(hashedPassword),
+				IsVerify:  true,
+				CreatedAt: NowAt,
+			})
+			if err != nil {
+				log.Fatalln("cannot inserted")
+				return
+			}
+			log.Println("✅ user admin created!")
+		}
+	}
 
 	// -----------------------------------------------------------------
 	// -----------------------------------------------------------------
@@ -53,6 +91,16 @@ func MongoDB() {
 			Unique: true,
 			Keys: bson.D{
 				{Key: "username", Value: 1},
+			},
+		},
+	})
+
+	MongoDB.CreateIndex(ctx, database, "user_login_history", []interfaces.IndexMongoDB{
+		{
+			Name:   "user_login_history_unique_per_item",
+			Unique: false,
+			Keys: bson.D{
+				{Key: "user_id", Value: 1},
 			},
 		},
 	})
@@ -113,6 +161,60 @@ func MongoDB() {
 			Keys: bson.D{
 				{Key: "user_merchant_id", Value: 1},
 				{Key: "seo_url", Value: 1},
+			},
+		},
+	})
+
+	MongoDB.CreateIndex(ctx, database, "product_category", []interfaces.IndexMongoDB{
+		{
+			Name:   "product_category_unique_per_item",
+			Unique: true,
+			Keys: bson.D{
+				{Key: "name", Value: 1},
+			},
+		},
+	})
+
+	MongoDB.CreateIndex(ctx, database, "product_etalase", []interfaces.IndexMongoDB{
+		{
+			Name:   "product_etalase_unique_per_item",
+			Unique: true,
+			Keys: bson.D{
+				{Key: "user_merchant_id", Value: 1},
+				{Key: "name", Value: 1},
+			},
+		},
+	})
+
+	MongoDB.CreateIndex(ctx, database, "product_review", []interfaces.IndexMongoDB{
+		{
+			Name:   "product_review_user_id",
+			Unique: false,
+			Keys: bson.D{
+				{Key: "user_id", Value: 1},
+			},
+		},
+		{
+			Name:   "product_review_invoice_number",
+			Unique: false,
+			Keys: bson.D{
+				{Key: "invoice_number", Value: 1},
+			},
+		},
+		{
+			Name:   "product_review_product_id",
+			Unique: false,
+			Keys: bson.D{
+				{Key: "product_id", Value: 1},
+			},
+		},
+		{
+			Name:   "product_review_unique_per_item",
+			Unique: true,
+			Keys: bson.D{
+				{Key: "user_id", Value: 1},
+				{Key: "invoice_number", Value: 1},
+				{Key: "product_id", Value: 1},
 			},
 		},
 	})
@@ -178,6 +280,13 @@ func MongoDB() {
 	})
 
 	MongoDB.CreateIndex(ctx, database, "transaction", []interfaces.IndexMongoDB{
+		{
+			Name:   "transaction_status",
+			Unique: false,
+			Keys: bson.D{
+				{Key: "status", Value: 1},
+			},
+		},
 		{
 			Name:   "transaction_user_id",
 			Unique: false,

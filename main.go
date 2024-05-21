@@ -1,32 +1,36 @@
 package main
 
 import (
+	"core/connection"
+	"core/env"
+	"core/initialize"
+	"core/util"
+	"core/variable"
+	"fmt"
 	"html/template"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
-	"project/connection"
-	"project/env"
-	"project/util"
-	"project/variable"
 	"syscall"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/helmet"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
 )
 
 type Template struct {
 	templates *template.Template
 }
 
-func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+func (t *Template) Render(w io.Writer, name string, data interface{}, c *fiber.Ctx) error {
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
 func main() {
-	// var err error
+	var err error
 
 	Dir := util.Dir{}
 	Dir.Make(variable.DatabasePath)
@@ -34,6 +38,12 @@ func main() {
 
 	Env := util.Env{}
 	Env.Load()
+	err = Env.SetTimezone()
+	if err != nil {
+		log.Fatalf("error on set timezone: %s", err.Error())
+		return
+	}
+	server_name := env.GetServerName()
 
 	MongoDB := connection.MongoDB{}
 	MongoDB.Connect()
@@ -46,31 +56,46 @@ func main() {
 
 	// ---------------------------------
 
-	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
-	e.Renderer = &Template{
-		templates: template.Must(template.ParseGlob("view/*.html")),
-	}
+	initialize.MongoDB()
 
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	// ---------------------------------
 
-	api := e.Group("/api")
+	app := fiber.New(fiber.Config{
+		//Prefork:               true,
+		ServerHeader:          server_name,
+		DisableStartupMessage: true,
+		CaseSensitive:         true,
+		BodyLimit:             10 * 1024 * 1024, // 10 MB / max file size
+	})
+	// app.Renderer = &Template{
+	// 	templates: template.Must(template.ParseGlob("view/*.html")),
+	// }
+	app.Use(helmet.New())
+	app.Use(cors.New(cors.Config{
+		AllowMethods:  "GET,PUT,POST,DELETE,OPTIONS",
+		ExposeHeaders: "Content-Type,Authorization,Accept",
+	}))
+	app.Use(requestid.New())
+	app.Use(compress.New(compress.Config{
+		Level: compress.LevelBestSpeed,
+	}))
+
+	api := app.Group("/api")
 
 	ModuleRegister(api)
 
-	e.Any("*", func(c echo.Context) error {
-		return c.JSON(http.StatusNotFound, map[string]string{
+	api.Use("*", func(c *fiber.Ctx) error {
+		fmt.Println("disini...")
+		return c.Status(fiber.StatusNotFound).JSON(map[string]string{
 			"message": "Endpoint tidak ditemukan!",
 		})
 	})
 
-	port := env.GetPort()
+	port := env.GetServerPort()
 	go func() {
-		log.Printf("✅ Server started on port http://localhost:%s\n", port)
-		if err := e.Start(":" + port); err != nil {
-			e.Logger.Fatal("error start server:", err)
+		log.Printf("✅ Server \"%s\" started on port http://localhost:%s\n", server_name, port)
+		if err := app.Listen(":" + port); err != nil {
+			log.Fatalln("error start server:", err)
 		}
 	}()
 

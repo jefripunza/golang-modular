@@ -1,9 +1,11 @@
 package util
 
 import (
+	"core/env"
 	"fmt"
+	"os"
 	"path/filepath"
-	"project/env"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -17,4 +19,16 @@ func (ref Env) Load() {
 	if err != nil {
 		fmt.Println("file .env not found")
 	}
+}
+
+func (ref Env) SetTimezone() error {
+	timezone := "Asia/Jakarta"
+	os.Setenv("TZ", timezone)
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		fmt.Println("Error loading location:", err)
+		return err
+	}
+	time.Local = loc
+	return nil
 }

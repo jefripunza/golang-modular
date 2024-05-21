@@ -1,11 +1,11 @@
 package connection
 
 import (
+	"core/env"
+	"core/util"
 	"database/sql"
 	"fmt"
 	"path/filepath"
-	"project/env"
-	"project/util"
 
 	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"

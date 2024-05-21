@@ -4,3 +4,6 @@ temp
 .env
 go.sum
 whatsapp.db
+
+core
+core.exe

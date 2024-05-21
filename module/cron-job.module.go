@@ -1,17 +1,18 @@
 package module
 
 import (
-	"project/middleware"
+	"core/middleware"
 
-	"github.com/labstack/echo/v4"
+	"github.com/gofiber/fiber/v2"
 )
 
 type CronJob struct{}
 
-func (ref CronJob) Route(e *echo.Group) {
+func (ref CronJob) Route(api fiber.Router) {
 	handler := CronJobHandler{}
+	route := api.Group("/cron-job", middleware.OnIntranetNetwork)
 
-	e.POST("/:project_key/cron-job-trigger/:cron_name", handler.Trigger, middleware.Onlyproject)
+	route.Post("/trigger/:cron_name", handler.Trigger)
 
 }
 
@@ -20,8 +21,10 @@ func (ref CronJob) Route(e *echo.Group) {
 
 type CronJobHandler struct{}
 
-func (handler CronJobHandler) Trigger(c echo.Context) error {
+func (handler CronJobHandler) Trigger(c *fiber.Ctx) error {
 	// var err error
 
-	return nil
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "OK",
+	})
 }

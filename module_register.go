@@ -1,34 +1,37 @@
 package main
 
 import (
-	"project/module"
+	"core/module"
 
-	"github.com/labstack/echo/v4"
+	"github.com/gofiber/fiber/v2"
 )
 
-func ModuleRegister(e *echo.Group) {
+func ModuleRegister(api fiber.Router) {
 
 	Example := module.Example{}
-	Example.Route(e)
+	Example.Route(api)
 
 	// --------------------------
 	// --------------------------
 
 	Temp := module.Temp{}
-	Temp.Route(e)
+	Temp.Route(api)
 
 	// --------------------------
 
 	Email := module.Email{}
-	Email.Route(e)
+	Email.Route(api)
 
 	WhatsApp := module.WhatsApp{}
-	WhatsApp.Route(e)
+	WhatsApp.Route(api)
 
 	Pdf := module.Pdf{}
-	Pdf.Route(e)
+	Pdf.Route(api)
 
 	// --------------------------
+
+	Auth := module.Auth{}
+	Auth.Route(api)
 
 	// --------------------------
 	// --------------------------

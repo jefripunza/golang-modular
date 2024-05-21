@@ -2,6 +2,8 @@ package connection
 
 import (
 	"context"
+	"core/env"
+	"core/interfaces"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -10,8 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"project/env"
-	"project/interfaces"
 	"time"
 
 	"github.com/google/uuid"

@@ -1,17 +1,17 @@
 package module
 
 import (
-	"net/http"
-
-	"github.com/labstack/echo/v4"
+	"github.com/gofiber/fiber/v2"
 )
 
 type Product struct{}
 
-func (ref Product) Route(e *echo.Group) {
+func (ref Product) Route(api fiber.Router) {
 	handler := ProductHandler{}
+	route := api.Group("/product")
 
-	e.GET("/:project_key/example-trigger/:value", handler.Trigger)
+	route.Get("/best-seller", handler.BestSeller)
+	route.Get("/detail/:seo_url", handler.Detail)
 
 }
 
@@ -20,10 +20,21 @@ func (ref Product) Route(e *echo.Group) {
 
 type ProductHandler struct{}
 
-func (handler ProductHandler) Trigger(c echo.Context) error {
+func (handler ProductHandler) BestSeller(c *fiber.Ctx) error {
 	// var err error
 
-	value := c.Param("value")
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "OK",
+	})
+}
 
-	return c.JSON(http.StatusOK, map[string]string{"message": "OK", "value": value})
+func (handler ProductHandler) Detail(c *fiber.Ctx) error {
+	// var err error
+
+	seo_url := c.Params("seo_url")
+
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "OK",
+		"seo_url": seo_url,
+	})
 }

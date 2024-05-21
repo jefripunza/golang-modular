@@ -2,27 +2,27 @@ package module
 
 import (
 	"bytes"
+	"core/connection"
+	"core/env"
+	"core/middleware"
+	"core/util"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
-	"project/connection"
-	"project/env"
-	"project/middleware"
-	"project/util"
 
 	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 )
 
 type Pdf struct{}
 
-func (ref Pdf) Route(e *echo.Group) {
+func (ref Pdf) Route(api fiber.Router) {
 	handler := PdfHandler{}
+	route := api.Group("/pdf")
 
-	e.POST("/:project_key/pdf-make", handler.Make, middleware.Onlyproject)
+	route.Post("/make", handler.Make, middleware.OnIntranetNetwork)
 
 }
 
@@ -31,7 +31,7 @@ func (ref Pdf) Route(e *echo.Group) {
 
 type PdfHandler struct{}
 
-func (handler PdfHandler) Make(c echo.Context) error {
+func (handler PdfHandler) Make(c *fiber.Ctx) error {
 	var err error
 
 	Validate := util.Validate{}
@@ -42,13 +42,15 @@ func (handler PdfHandler) Make(c echo.Context) error {
 		URL   *string `json:"url"`
 		Delay *int    `json:"delay"`
 	}
-	if err = c.Bind(&body); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"message": "Format JSON tidak valid"})
+	if err = c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(map[string]string{
+			"message": "Format JSON tidak valid",
+		})
 	}
 
 	pdfg, err := wkhtmltopdf.NewPDFGenerator()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Gagal membuat PDF generator: %v", err)})
+		return c.Status(fiber.StatusInternalServerError).JSON(map[string]string{"message": fmt.Sprintf("Gagal membuat PDF generator: %v", err)})
 	}
 	if body.Html != nil {
 		pdfg.AddPage(wkhtmltopdf.NewPageReader(bytes.NewReader([]byte(*body.Html))))
@@ -58,19 +60,19 @@ func (handler PdfHandler) Make(c echo.Context) error {
 		if body.Delay != nil {
 			delay, err := Validate.NumberOnly(*body.Delay)
 			if err != nil {
-				return c.JSON(http.StatusBadRequest, map[string]string{"message": "delay bukan integer"})
+				return c.Status(fiber.StatusBadRequest).JSON(map[string]string{"message": "delay bukan integer"})
 			}
 			delaySeconds = delay
 		}
 		page.JavascriptDelay.Set(uint(delaySeconds * 1000))
 		pdfg.AddPage(page)
 	} else {
-		return c.JSON(http.StatusBadRequest, map[string]string{"message": "Tidak ada HTML atau URL yang disediakan"})
+		return c.Status(fiber.StatusBadRequest).JSON(map[string]string{"message": "Tidak ada HTML atau URL yang disediakan"})
 	}
 
 	err = pdfg.Create()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Gagal membuat PDF: %v", err)})
+		return c.Status(fiber.StatusInternalServerError).JSON(map[string]string{"message": fmt.Sprintf("Gagal membuat PDF: %v", err)})
 	}
 
 	tempDir := filepath.Join(env.GetPwd(), "temp")
@@ -78,20 +80,20 @@ func (handler PdfHandler) Make(c echo.Context) error {
 	tempPath := filepath.Join(tempDir, uuidv4+".pdf")
 	err = ioutil.WriteFile(tempPath, pdfg.Bytes(), 0644)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Gagal menyimpan PDF: %v", err)})
+		return c.Status(fiber.StatusInternalServerError).JSON(map[string]string{"message": fmt.Sprintf("Gagal menyimpan PDF: %v", err)})
 	}
 
 	fileName, err := CDN.Upload(tempPath, "pdf")
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Gagal upload ke CDN: %v", err)})
+		return c.Status(fiber.StatusInternalServerError).JSON(map[string]string{"message": fmt.Sprintf("Gagal upload ke CDN: %v", err)})
 	}
 
 	err = os.Remove(tempPath)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"message": fmt.Sprintf("Gagal menghapus file PDF: %v", err)})
+		return c.Status(fiber.StatusInternalServerError).JSON(map[string]string{"message": fmt.Sprintf("Gagal menghapus file PDF: %v", err)})
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
 		"message": "PDF berhasil diupload",
 		"result":  fileName,
 	})

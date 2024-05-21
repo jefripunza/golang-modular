@@ -2,6 +2,7 @@ package connection
 
 import (
 	"bytes"
+	"core/env"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"project/env"
 	"strings"
 )
 

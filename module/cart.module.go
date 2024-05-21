@@ -1,17 +1,16 @@
 package module
 
 import (
-	"net/http"
-
-	"github.com/labstack/echo/v4"
+	"github.com/gofiber/fiber/v2"
 )
 
 type Cart struct{}
 
-func (ref Cart) Route(e *echo.Group) {
+func (ref Cart) Route(api fiber.Router) {
 	handler := CartHandler{}
+	route := api.Group("/cart")
 
-	e.GET("/:project_key/example-trigger/:value", handler.Trigger)
+	route.Get("/get", handler.Get)
 
 }
 
@@ -20,10 +19,10 @@ func (ref Cart) Route(e *echo.Group) {
 
 type CartHandler struct{}
 
-func (handler CartHandler) Trigger(c echo.Context) error {
+func (handler CartHandler) Get(c *fiber.Ctx) error {
 	// var err error
 
-	value := c.Param("value")
-
-	return c.JSON(http.StatusOK, map[string]string{"message": "OK", "value": value})
+	return c.Status(fiber.StatusOK).JSON(map[string]string{
+		"message": "OK",
+	})
 }
