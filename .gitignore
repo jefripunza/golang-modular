@@ -10,3 +10,6 @@ whatsapp.db
 
 core
 core.exe
+.vercel
+
+yarn.lock
